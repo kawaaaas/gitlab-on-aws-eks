@@ -1,0 +1,26 @@
+{
+  "name": "gitlab-on-aws-eks",
+  "version": "0.1.0",
+  "bin": {
+    "gitlab-on-aws-eks": "bin/gitlab-on-aws-eks.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
+    "aws-cdk": "2.1114.1",
+    "ts-node": "^10.9.2",
+    "typescript": "~6.0.2"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.245.0",
+    "constructs": "^10.6.0"
+  }
+}
