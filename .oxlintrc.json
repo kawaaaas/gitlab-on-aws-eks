@@ -1,0 +1,10 @@
+{
+  "categories": {
+    "correctness": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "warn"
+  },
+  "ignorePatterns": ["cdk.out/**", "node_modules/**", "*.js", "*.d.ts"]
+}

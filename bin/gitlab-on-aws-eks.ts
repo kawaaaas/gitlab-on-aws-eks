@@ -1,20 +1,39 @@
 #!/usr/bin/env node
-import * as cdk from 'aws-cdk-lib/core';
-import { GitlabOnAwsEksStack } from '../lib/gitlab-on-aws-eks-stack';
+import * as cdk from "aws-cdk-lib/core";
+import { EksClusterStack } from "../lib/gitlab-on-aws-eks-stack";
 
+/**
+ * CDKアプリケーションのエントリポイント
+ *
+ * NOTE: CDKアプリは1つのAppの中に複数のStackを定義する。
+ * 各StackはCloudFormationのスタックに対応し、独立してデプロイ・削除できる。
+ *
+ * Phase 1 のスタック構成:
+ * 1. EksClusterStack — VPC, EKSクラスター, ノードグループ
+ * 2. GitlabStack — GitLab Helm Chart デプロイ（後で追加）
+ * 3. MonitoringStack — Prometheus + Grafana（後で追加）
+ */
 const app = new cdk.App();
-new GitlabOnAwsEksStack(app, 'GitlabOnAwsEksStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+// NOTE: env を指定することで、デプロイ先のアカウント・リージョンを明示する。
+// CDK_DEFAULT_ACCOUNT / CDK_DEFAULT_REGION は `aws configure` で設定した値が入る。
+// EKSはリージョン依存の機能が多いため、env指定が推奨される。
+const env: cdk.Environment = {
+  account: process.env.CDK_DEFAULT_ACCOUNT,
+  region: process.env.CDK_DEFAULT_REGION,
+};
 
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
+const eksClusterStack = new EksClusterStack(app, "EksClusterStack", { env });
 
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
-});
+// NOTE: 後続スタックはここに追加していく。
+// クラスターへの参照をpropsで渡すことで、スタック間の依存を明示的にする。
+//
+// const gitlabStack = new GitlabStack(app, 'GitlabStack', {
+//   env,
+//   cluster: eksClusterStack.cluster,
+// });
+//
+// const monitoringStack = new MonitoringStack(app, 'MonitoringStack', {
+//   env,
+//   cluster: eksClusterStack.cluster,
+// });

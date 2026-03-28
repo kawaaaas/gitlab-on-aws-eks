@@ -1,9 +1,7 @@
 {
   "app": "npx ts-node --prefer-ts-exts bin/gitlab-on-aws-eks.ts",
   "watch": {
-    "include": [
-      "**"
-    ],
+    "include": ["**"],
     "exclude": [
       "README.md",
       "cdk*.json",
@@ -21,10 +19,7 @@
     "@aws-cdk/aws-ecs-patterns:secGroupsDisablesImplicitOpenListener": true,
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
-    "@aws-cdk/core:target-partitions": [
-      "aws",
-      "aws-cn"
-    ],
+    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"],
     "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,
     "@aws-cdk/aws-ec2:uniqueImdsv2TemplateName": true,
     "@aws-cdk/aws-ecs:arnFormatIncludesClusterName": true,
@@ -97,6 +92,14 @@
     "@aws-cdk/aws-lambda:useCdkManagedLogGroup": true,
     "@aws-cdk/aws-elasticloadbalancingv2:networkLoadBalancerWithSecurityGroupByDefault": true,
     "@aws-cdk/aws-ecs-patterns:uniqueTargetGroupId": true,
-    "@aws-cdk/aws-route53-patterns:useDistribution": true
+    "@aws-cdk/aws-route53-patterns:useDistribution": true,
+
+    "eks:clusterName": "gitlab-learning",
+    "eks:nodeInstanceType": "t3.large",
+    "eks:nodeMinSize": 1,
+    "eks:nodeMaxSize": 1,
+    "eks:nodeDesiredSize": 1,
+    "eks:nodeDiskSize": 30,
+    "vpc:maxAzs": 2
   }
 }
