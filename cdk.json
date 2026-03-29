@@ -95,7 +95,7 @@
     "@aws-cdk/aws-route53-patterns:useDistribution": true,
 
     "eks:clusterName": "gitlab-learning",
-    "eks:nodeInstanceType": "t3.large",
+    "eks:nodeInstanceType": "t3.xlarge",
     "eks:nodeMinSize": 1,
     "eks:nodeMaxSize": 1,
     "eks:nodeDesiredSize": 1,

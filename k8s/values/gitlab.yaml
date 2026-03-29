@@ -1,0 +1,234 @@
+# GitLab Helm Chart カスタム values
+# デフォルト値からの変更点のみ記述。変更理由をコメントで残す。
+# 公式チャート: https://charts.gitlab.io/ の gitlab/gitlab
+#
+# NOTE: GitLab Helm Chartのアーキテクチャ
+# GitLabは単一のアプリケーションではなく、複数のコンポーネントで構成される:
+# - Webservice (Puma): GitLabのWebUI・API。RailsアプリケーションをPumaで実行
+# - Sidekiq: バックグラウンドジョブ処理（メール送信、CI/CDパイプライン等）
+# - Gitaly: Gitリポジトリへの高レベルRPCアクセスを提供するサービス
+# - GitLab Shell: SSH経由のGitアクセスを処理
+# - Workhorse: Webserviceの前段に立つリバースプロキシ。大きなファイルのアップロード等を処理
+# - Registry: Dockerコンテナイメージのレジストリ
+# - KAS (Kubernetes Agent Server): GitLab Agent for Kubernetesとの通信
+#
+# バンドルサービス（Phase 1で使用、Phase 2で外部化予定）:
+# - PostgreSQL: メインデータベース。ユーザー、プロジェクト、CI/CD設定等を保存
+# - Redis: キャッシュ、セッション、Sidekiqジョブキュー
+# - MinIO: S3互換オブジェクトストレージ。アーティファクト、アップロード、LFS等を保存
+
+# ========================================
+# グローバル設定
+# ========================================
+global:
+  hosts:
+    # NOTE: ドメインなしで運用するため、ダミードメインを設定。
+    # IPアクセスのみなので実際のDNS解決は不要。
+    domain: gitlab.local
+    https: false
+
+  ingress:
+    # NOTE: cert-managerによる自動TLS証明書発行を無効化。
+    # ドメインなし・HTTP運用のため不要。
+    configureCertmanager: false
+    tls:
+      enabled: false
+    # NOTE: Ingressのクラス設定。
+    # GitLab Helm Chartはデフォルトで独自のNGINX Ingress Controllerをバンドルする。
+    # "gitlab-nginx" はそのバンドルNGINXのIngressClass名。
+    class: gitlab-nginx
+
+# ========================================
+# cert-manager: 無効化
+# ========================================
+# NOTE: cert-managerはLet's EncryptでTLS証明書を自動発行するコンポーネント。
+# ドメインなし・HTTP運用のため不要。
+certmanager:
+  install: false
+
+# ========================================
+# NGINX Ingress Controller
+# ========================================
+# NOTE: GitLab Helm Chartはデフォルトで独自のNGINX Ingress Controllerをデプロイする。
+# これはクラスター外からのHTTPトラフィックをGitLabの各コンポーネントにルーティングする。
+# EKS環境ではServiceType=LoadBalancerにより、AWSのNLB/CLBが自動作成される。
+nginx-ingress:
+  controller:
+    service:
+      # NOTE: LoadBalancerタイプにすることで、AWSがELBを自動作成し、
+      # 外部からアクセス可能なIPアドレス/DNSが割り当てられる。
+      type: LoadBalancer
+    # リソースリクエスト/リミット: 学習用の最小値
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+# ========================================
+# GitLab コンポーネント設定
+# ========================================
+gitlab:
+  # NOTE: Webservice (Puma) — GitLabのメインWebアプリケーション。
+  # ユーザーがブラウザでアクセスするUI、REST API、GraphQL APIを提供。
+  webservice:
+    # NOTE: replicaCount=1 で学習用の最小構成。
+    # 本番では複数レプリカで可用性を確保する。
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 300m
+        memory: 1.5Gi
+      limits:
+        memory: 3Gi
+    # NOTE: workerProcesses はPumaのワーカー数。
+    # メモリ消費に直結するため、学習用途では最小の2に設定。
+    workerProcesses: 2
+
+  # NOTE: Sidekiq — バックグラウンドジョブプロセッサ。
+  # メール送信、Webhookの発火、リポジトリのクリーンアップ、CI/CDパイプラインの処理等、
+  # 非同期で実行すべきタスクを処理する。Redisからジョブを取得して実行する。
+  sidekiq:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+
+  # NOTE: Gitaly — Gitリポジトリストレージサービス。
+  # GitLabがGitリポジトリにアクセスする際、直接ファイルシステムを触るのではなく、
+  # GitalyのgRPC APIを経由する。これによりリポジトリストレージの抽象化と
+  # 将来的な分散化（Praefect/Raft）が可能になる。
+  gitaly:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    persistence:
+      # NOTE: Gitalyはリポジトリデータを永続化するためPVCを使用。
+      # 学習用途のため10GBに制限。
+      size: 10Gi
+
+  # NOTE: GitLab Shell — SSH経由のGit操作を処理するコンポーネント。
+  # `git clone git@gitlab:...` のようなSSHアクセスを受け付ける。
+  gitlab-shell:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
+
+  # NOTE: Toolbox — 管理タスク用のPod。
+  # バックアップ、リストア、Railsコンソール等の運用タスクに使用。
+  # 常時稼働するが、リソース消費は少ない。
+  toolbox:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+  # NOTE: Migrations — データベースマイグレーション用のJob。
+  # GitLabのバージョンアップ時にDBスキーマを更新する。
+  # デプロイ時に自動実行される。
+  migrations:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+  # NOTE: KAS (Kubernetes Agent Server) — 無効化。
+  # GitLab Agent for Kubernetesとの通信を担当するが、
+  # 学習用途では不要。リソース節約のため無効化。
+  kas:
+    enabled: false
+
+# ========================================
+# GitLab Runner: 無効化
+# ========================================
+# NOTE: GitLab RunnerはCI/CDジョブを実行するコンポーネント。
+# 学習用途ではCI/CDは不要なため無効化してリソースを節約。
+# 必要になったら enabled: true にすれば追加できる。
+gitlab-runner:
+  install: false
+
+# ========================================
+# Container Registry: 無効化
+# ========================================
+# NOTE: Dockerイメージのプッシュ/プルを行うレジストリ。
+# 学習用途では不要なため無効化。
+registry:
+  enabled: false
+
+# ========================================
+# Prometheus (GitLabバンドル版): 無効化
+# ========================================
+# NOTE: GitLab Helm Chartはデフォルトで独自のPrometheusをバンドルするが、
+# MonitoringStackで別途Prometheus + Grafanaをデプロイするため、
+# バンドル版は無効化して重複を避ける。
+prometheus:
+  install: false
+
+# ========================================
+# バンドルサービス（Phase 1: クラスター内で完結）
+# ========================================
+
+# NOTE: PostgreSQL — GitLabのメインデータベース。
+# ユーザー、プロジェクト、マージリクエスト、CI/CD設定等、
+# GitLabのほぼ全てのデータがここに保存される。
+# Phase 2でAWS RDSに移行予定。
+postgresql:
+  install: true
+  # COST: バンドルPostgreSQLのリソースを最小化
+  primary:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    persistence:
+      size: 8Gi
+
+# NOTE: Redis — インメモリデータストア。GitLabでは以下の用途で使用:
+# - Sidekiqジョブキュー（バックグラウンドジョブの管理）
+# - セッションストア（ユーザーのログインセッション）
+# - キャッシュ（ページキャッシュ、リポジトリキャッシュ等）
+# - リアルタイム機能（ActionCable経由のWebSocket通信）
+# Phase 2でAmazon ElastiCacheに移行予定。
+redis:
+  install: true
+  master:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+
+# NOTE: MinIO — S3互換オブジェクトストレージ。GitLabでは以下を保存:
+# - CI/CDアーティファクト（ビルド成果物）
+# - LFS (Large File Storage) オブジェクト
+# - アップロードファイル（アバター、添付ファイル等）
+# - パッケージ（npm, Maven等のパッケージレジストリ）
+# 本番環境ではAWS S3を直接使用するのが推奨。
+minio:
+  install: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  persistence:
+    size: 10Gi

@@ -99,9 +99,10 @@ export class EksClusterConstruct extends Construct {
     // 管理してくれる仕組み。自分でAuto Scaling Groupを管理する「セルフマネージドノード」
     // と比べて運用負荷が低い。
     //
-    // COST: t3.large (2 vCPU, 8GB RAM) x 1台 = 約$0.104/h（東京リージョン）
-    // EKSクラスター料金 $0.10/h と合わせて約$0.204/h（約30円/h）
-    // 1時間の利用で数百円以内に収まる。
+    // COST: t3.xlarge (4 vCPU, 16GB RAM) x 1台 = 約$0.208/h（東京リージョン）
+    // EKSクラスター料金 $0.10/h と合わせて約$0.308/h（約46円/h）
+    // GitLabの全コンポーネント（Webservice, Sidekiq, PostgreSQL, Redis, MinIO等）を
+    // 1台で動かすために16GB RAMが必要。
     this.cluster.addNodegroupCapacity("WorkerNodes", {
       instanceTypes: [new ec2.InstanceType(props.nodeInstanceType)],
       // NOTE: 学習用途のため1台構成。

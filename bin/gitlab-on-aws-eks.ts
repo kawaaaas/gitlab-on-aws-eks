@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib/core";
 import { EksClusterStack } from "../lib/gitlab-on-aws-eks-stack";
+import { GitlabStack } from "../lib/gitlab-stack";
 
 /**
  * CDKアプリケーションのエントリポイント
@@ -25,13 +26,17 @@ const env: cdk.Environment = {
 
 const eksClusterStack = new EksClusterStack(app, "EksClusterStack", { env });
 
+// NOTE: GitlabStack — GitLab Helm Chartをクラスターにデプロイ。
+// EksClusterStackのクラスター参照をpropsで渡すことで、スタック間の依存を明示的にする。
+// CDKはこの依存関係を検出し、EksClusterStack → GitlabStack の順でデプロイする。
+new GitlabStack(app, "GitlabStack", {
+  env,
+  cluster: eksClusterStack.cluster,
+});
+
+cdk.RemovalPolicies.of(app).destroy();
+cdk.Tags.of(app).add("project", "gitlab-on-aws-eks");
 // NOTE: 後続スタックはここに追加していく。
-// クラスターへの参照をpropsで渡すことで、スタック間の依存を明示的にする。
-//
-// const gitlabStack = new GitlabStack(app, 'GitlabStack', {
-//   env,
-//   cluster: eksClusterStack.cluster,
-// });
 //
 // const monitoringStack = new MonitoringStack(app, 'MonitoringStack', {
 //   env,
